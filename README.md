@@ -1,4 +1,4 @@
-⚡ Browser-Native Offline AI Chatbot
+⚡**Browser-Native Offline AI Chatbot**
 
 Run powerful AI models like Llama 3 & Qwen 2.5 directly in your browser.
 
