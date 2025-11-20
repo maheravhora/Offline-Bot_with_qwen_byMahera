@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>mahera.io | Local AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* Dark Mode Scrollbar */
+        .chat-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-scroll::-webkit-scrollbar-track {
+            background: #171717; /* neutral-900 */
+        }
+        .chat-scroll::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+        .chat-scroll::-webkit-scrollbar-thumb:hover {
+            background: #10b981; /* emerald-500 */
+        }
+
+        /* Animations */
+        .typing-dot {
+            animation: typing 1.4s infinite ease-in-out both;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Code block styling for dark mode */
+        code {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body class="bg-neutral-950 text-gray-100 h-[100dvh] flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
+
+    <header class="bg-neutral-900/90 backdrop-blur-md border-b border-neutral-800 p-4 sticky top-0 z-10">
+        <div class="max-w-3xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded bg-emerald-500/10 flex items-center justify-center border border-emerald-500/30">
+                    <i class="fa-solid fa-microchip text-emerald-500"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight text-white">mahera<span class="text-emerald-500">.io</span></h1>
+                    <p class="text-[10px] uppercase tracking-widest text-neutral-500 font-semibold">Offline Neural Net</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div id="status-badge" class="bg-neutral-800 border border-neutral-700 text-neutral-400 text-[10px] px-2 py-1 rounded uppercase tracking-wider font-bold transition-all">
+                    Waiting
+                </div>
+                <button id="delete-cache-btn" class="text-neutral-500 hover:text-red-500 transition-colors text-sm hidden" title="Clear Cache">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 w-full max-w-3xl mx-auto p-2 sm:p-4 flex flex-col overflow-hidden relative">
+        
+        <div id="init-panel" class="bg-neutral-900 border border-neutral-800 p-6 rounded-xl shadow-2xl mb-4 text-center transition-all mt-10 mx-2">
+            <div class="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
+                <i class="fa-solid fa-download text-emerald-500 text-2xl"></i>
+            </div>
+            <h2 class="text-xl font-bold mb-2 text-white">Initialize System</h2>
+            <p class="text-neutral-400 text-sm mb-6 max-w-md mx-auto">
+                mahera.io runs locally on your GPU. The first run requires downloading the model (~2.5GB).
+                <br><span class="text-xs text-neutral-500 mt-2 block">Wi-Fi recommended.</span>
+            </p>
+            
+            <div class="mb-6 relative">
+                <select id="model-select" class="appearance-none bg-neutral-950 border border-neutral-700 text-white py-3 px-4 pr-8 rounded-lg w-full max-w-xs focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer text-sm">
+                    <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC">Llama 3.2 3B (Fastest • 2.2GB)</option>
+                    <option value="Qwen2.5-7B-Instruct-q4f16_1-MLC">Qwen 2.5 7B (Smartest • 4.5GB)</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-neutral-400 mr-1 sm:mr-[calc(50%-10rem)]">
+                    <i class="fa-solid fa-chevron-down text-xs"></i>
+                </div>
+            </div>
+
+            <button id="download-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-8 py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] w-full max-w-xs active:scale-95">
+                Load Model
+            </button>
+
+            <div id="progress-container" class="hidden mt-6 max-w-xs mx-auto">
+                <div class="flex justify-between text-xs text-neutral-400 mb-1">
+                    <span>Downloading...</span>
+                    <span id="progress-text">0%</span>
+                </div>
+                <div class="w-full bg-neutral-800 rounded-full h-1.5 overflow-hidden">
+                    <div id="progress-bar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(16,185,129,0.5)]" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="chat-container" class="flex-1 rounded-lg overflow-y-auto chat-scroll space-y-6 pb-4 hidden">
+            </div>
+
+        <div id="typing-indicator" class="hidden items-center gap-1 p-2 ml-2 text-emerald-500 opacity-70">
+            <span class="text-xs mr-2 font-mono">mahera is thinking</span>
+            <div class="w-1.5 h-1.5 bg-emerald-500 rounded-full typing-dot"></div>
+            <div class="w-1.5 h-1.5 bg-emerald-500 rounded-full typing-dot"></div>
+            <div class="w-1.5 h-1.5 bg-emerald-500 rounded-full typing-dot"></div>
+        </div>
+
+    </main>
+
+    <footer class="bg-neutral-900 border-t border-neutral-800 p-3 sm:p-4">
+        <div class="max-w-3xl mx-auto">
+            <form id="chat-form" class="flex items-end gap-2 bg-neutral-950 border border-neutral-700 rounded-xl p-1.5 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
+                <input type="text" id="user-input" disabled autocomplete="off"
+                    class="flex-1 bg-transparent text-white p-3 text-sm sm:text-base focus:outline-none disabled:cursor-not-allowed placeholder-neutral-600"
+                    placeholder="Message mahera.io...">
+                <button type="submit" id="send-btn" disabled 
+                    class="bg-emerald-600 text-white p-3 rounded-lg hover:bg-emerald-500 disabled:bg-neutral-800 disabled:text-neutral-600 disabled:cursor-not-allowed transition-all shadow-lg flex-shrink-0 w-12 h-12 flex items-center justify-center">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </form>
+            <div class="text-center mt-2">
+                <p class="text-[10px] text-neutral-600">Runs 100% offline via WebGPU.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script type="module">
+        import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+        const downloadBtn = document.getElementById('download-btn');
+        const modelSelect = document.getElementById('model-select');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const initPanel = document.getElementById('init-panel');
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const chatForm = document.getElementById('chat-form');
+        const statusBadge = document.getElementById('status-badge');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const deleteCacheBtn = document.getElementById('delete-cache-btn');
+
+        let engine = null;
+
+        async function checkCache() {
+            try {
+                const keys = await caches.keys();
+                const hasModel = keys.some(k => k.includes('webllm'));
+                if(hasModel) {
+                    statusBadge.innerText = "READY TO LOAD";
+                    statusBadge.className = "bg-emerald-900/30 border border-emerald-500/30 text-emerald-400 text-[10px] px-2 py-1 rounded uppercase tracking-wider font-bold";
+                    downloadBtn.innerHTML = '<i class="fa-solid fa-power-off mr-2"></i> Power On System';
+                    deleteCacheBtn.classList.remove('hidden');
+                }
+            } catch(e) { console.log("Cache check failed", e); }
+        }
+        checkCache();
+
+        const initProgressCallback = (report) => {
+            console.log(report);
+            progressContainer.classList.remove('hidden');
+            
+            let progress = 0;
+            if (report.progress) {
+                progress = report.progress * 100;
+            } else if (report.text.includes('Loading')) {
+                progress = 50; 
+            }
+            
+            progressBar.style.width = `${progress}%`;
+            progressText.innerText = Math.floor(progress) + "%";
+
+            if (report.text.includes("Finish loading")) {
+                onModelLoaded();
+            }
+        };
+
+        async function onModelLoaded() {
+            initPanel.classList.add('hidden');
+            chatContainer.classList.remove('hidden');
+            
+            statusBadge.innerHTML = '<span class="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block mr-1 animate-pulse"></span> ONLINE';
+            statusBadge.className = "bg-emerald-900/20 border border-emerald-500/50 text-emerald-500 text-[10px] px-2 py-1 rounded uppercase tracking-wider font-bold flex items-center";
+            
+            deleteCacheBtn.classList.remove('hidden');
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            userInput.focus();
+            
+            // Initial Greeting
+            appendMessage('assistant', "System online. I am **mahera.io**. \n\nI am running locally on your device's hardware. How can I assist you today?");
+        }
+
+        deleteCacheBtn.addEventListener('click', async () => {
+            if(confirm("Purge local model data? You will need to re-download the 2.5GB model next time.")) {
+                const keys = await caches.keys();
+                let deletedCount = 0;
+                for (const key of keys) {
+                    if (key.includes('webllm') || key.includes('mlc')) {
+                        await caches.delete(key);
+                        deletedCount++;
+                    }
+                }
+                alert(`System purged. Reloading interface.`);
+                window.location.reload();
+            }
+        });
+
+        downloadBtn.addEventListener('click', async () => {
+            const selectedModel = modelSelect.value;
+            downloadBtn.disabled = true;
+            downloadBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Initializing GPU...';
+            
+            try {
+                engine = new webllm.MLCEngine();
+                engine.setInitProgressCallback(initProgressCallback);
+                await engine.reload(selectedModel);
+            } catch (err) {
+                console.error(err);
+                progressText.innerText = "Error";
+                alert("Initialization Error: " + err.message);
+                downloadBtn.disabled = false;
+                downloadBtn.innerText = "Retry";
+            }
+        });
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            appendMessage('user', text);
+            userInput.value = '';
+            
+            typingIndicator.classList.remove('hidden');
+            typingIndicator.classList.add('flex');
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            const messages = [
+                { role: "system", content: "You are mahera.io, a helpful AI assistant running offline. You are concise, intelligent, and technical." },
+                { role: "user", content: text }
+            ];
+
+            try {
+                let botMessageDiv = appendMessage('assistant', ''); 
+                let fullResponse = "";
+
+                const completion = await engine.chat.completions.create({
+                    messages: messages, 
+                    stream: true,
+                });
+
+                typingIndicator.classList.add('hidden');
+                typingIndicator.classList.remove('flex');
+
+                for await (const chunk of completion) {
+                    const delta = chunk.choices[0].delta.content;
+                    if (delta) {
+                        fullResponse += delta;
+                        botMessageDiv.innerHTML = markedParse(fullResponse);
+                        // Auto scroll only if near bottom
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                    }
+                }
+            } catch (err) {
+                typingIndicator.classList.add('hidden');
+                appendMessage('assistant', "Error: " + err.message);
+            }
+        });
+
+        function appendMessage(role, text) {
+            const div = document.createElement('div');
+            const isUser = role === 'user';
+            
+            div.className = `flex items-start gap-3 ${isUser ? 'justify-end' : ''}`;
+            
+            // HTML Structure
+            div.innerHTML = `
+                ${!isUser ? `
+                <div class="w-8 h-8 rounded bg-neutral-800 border border-neutral-700 flex items-center justify-center shrink-0 mt-1">
+                    <i class="fa-solid fa-microchip text-emerald-500 text-xs"></i>
+                </div>` : ''}
+                
+                <div class="flex flex-col max-w-[85%] sm:max-w-[75%] leading-relaxed p-3 sm:p-4 rounded-2xl text-sm sm:text-base shadow-sm
+                    ${isUser ? 
+                    'bg-emerald-600 text-white rounded-br-none' : 
+                    'bg-neutral-800 border border-neutral-700 text-gray-200 rounded-bl-none'}">
+                    <div class="prose-content break-words">${markedParse(text)}</div>
+                </div>
+                
+                ${isUser ? `
+                <div class="w-8 h-8 rounded bg-neutral-700 flex items-center justify-center shrink-0 mt-1">
+                    <i class="fa-solid fa-user text-neutral-400 text-xs"></i>
+                </div>` : ''}
+            `;
+            
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            return div.querySelector('.prose-content');
+        }
+
+        function markedParse(text) {
+            if(!text) return "";
+            return text
+                .replace(/\*\*(.*?)\*\*/g, '<b class="text-white font-bold">$1</b>')
+                .replace(/`([^`]+)`/g, '<code class="bg-neutral-950 text-emerald-400 px-1.5 py-0.5 rounded text-xs border border-neutral-700">$1</code>')
+                .replace(/\n/g, '<br>');
+        }
+
+    </script>
+</body>
+</html>
